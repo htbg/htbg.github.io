@@ -1,59 +1,483 @@
-<header>
+# Fiori Application Configuration with Separate CAP Node.js Service on BTP with XSUAA Authentication via AppRouter
 
-<!--
-  <<< Author notes: Course header >>>
-  Include a 1280×640 image, course title in sentence case, and a concise description in emphasis.
-  In your repository settings: enable template repository, add your 1280×640 social image, auto delete head branches.
-  Add your open source license, GitHub uses MIT license.
--->
+**Authors:** Daniel Cabral and Gabriel Bernardo
 
-# GitHub Pages
+Most of the available documentation focuses on full-stack projects. This document aims to detail the configuration for projects where the backend and frontend are separated.
 
-_Create a site or blog from your GitHub repositories with GitHub Pages._
+## Step by Step
 
-</header>
+### 1. **Creating the CAP Backend**
 
-<!--
-  <<< Author notes: Step 2 >>>
-  Start this step by acknowledging the previous step.
-  Define terms and link to docs.github.com.
-  Historic note: previous version checked for empty pull request, changed to the correct theme `minima`.
--->
+-   In the creation wizard, select the options to create with standalone AppRouter, Connectivity Services, Destination Service, and authentication via XSUAA (this last option may not be available or necessary).
+    
+-   After setting up the project, configure the routes in AppRouter, especially the callback URI section, containing the URLs that will call the application. In theory, generic BTP URLs with asterisks would suffice, but in the example, it was necessary to specifically add the Fiori application URL.
+    
+-   It is necessary to create and later assign the UAA user role.
+    
+-   For better interaction in freestyle apps, install the dependency `@cap-js-community/odata-v2-adapter`.
+    
+-   In the end, we will have something like:
+	 
+	 **mta.yaml:**
+	 ```yaml
+	 _schema-version: 3.3.0
+	 ID: test1
+	 version: 1.0.0
+	 description: "A simple CAP project."
+	 parameters:
+	   enable-parallel-deployments: true
+	 build-parameters:
+	   before-all:
+	     - builder: custom
+	       commands:
+	         - npm ci
+	         - npx cds build --production
+	 modules:
+	   - name: test1-srv
+	     type: nodejs
+	     path: gen/srv
+	     parameters:
+	       buildpack: nodejs_buildpack
+	       readiness-health-check-type: http
+	       readiness-health-check-http-endpoint: /health
+	     build-parameters:
+	       builder: npm
+	     provides:
+	       - name: srv-api # required by consumers of CAP services (e.g. approuter)
+	         properties:
+	           srv-url: ${default-url}
+	     requires:
+	       - name: test1-auth
+	       - name: test1-db
+	       - name: test1-connectivity
+	       - name: test1-destination
 
-## Step 2: Configure your site
+	   - name: test1-db-deployer
+	     type: hdb
+	     path: gen/db
+	     parameters:
+	       buildpack: nodejs_buildpack
+	     requires:
+	       - name: test1-db
 
-_You turned on GitHub Pages! :tada:_
+	   - name: test1
+	     type: approuter.nodejs
+	     path: app/router
+	     parameters:
+	       keep-existing-routes: true
+	       disk-quota: 256M
+	       memory: 256M
+	     requires:
+	       - name: srv-api
+	         group: destinations
+	         properties:
+	           name: srv-api # must be used in xs-app.json as well
+	           url: ~{srv-url}
+	           forwardAuthToken: true
+	       - name: test1-auth
+	       - name: test1-destination
+	     provides:
+	       - name: app-api
+	         properties:
+	           app-protocol: ${protocol}
+	           app-uri: ${default-uri}
 
-We'll work in a branch, `my-pages`, that I created for you to get this site looking great. :sparkle:
+	 resources:
+	   - name: test1-auth
+	     type: org.cloudfoundry.managed-service
+	     parameters:
+	       service: xsuaa
+	       service-plan: application
+	       path: ./xs-security.json
+	       config:
+	         xsappname: test1-${org}-${space}
+	         tenant-mode: dedicated
+	   - name: test1-db
+	     type: com.sap.xs.hdi-container
+	     parameters:
+	       service: hana
+	       service-plan: hdi-shared
+	   - name: test1-connectivity
+	     type: org.cloudfoundry.managed-service
+	     parameters:
+	       service: connectivity
+	       service-plan: lite
+	   - name: test1-destination
+	     type: org.cloudfoundry.managed-service
+	     parameters:
+	       service: destination
+	       service-plan: lite
+	 ```
 
-Jekyll uses a file titled `_config.yml` to store settings for your site, your theme, and reusable content like your site title and GitHub handle. You can check out the `_config.yml` file on the **Code** tab of your repository.
+	 **xs-secutity.json:** 
+	```json
+	{
+	  "tenant-mode": "dedicated",
+	  "scopes": [
+	    {
+	      "name": "uaa.user",
+	      "description": "UAA"
+	    }
+	  ],
+	  "attributes": [
+	    {
+	      "name": "firstname",
+	      "description": "User First Name",
+	      "valueType": "string",
+	      "valueRequired": false
+	    },
+	    {
+	      "name": "lastname",
+	      "description": "User Last Name",
+	      "valueType": "string",
+	      "valueRequired": false
+	    },
+	    {
+	      "name": "Groups",
+	      "description": "User groups",
+	      "valueType": "string",
+	      "valueRequired": false
+	    },
+	    {
+	      "name": "Roles",
+	      "description": "User roles",
+	      "valueType": "string",
+	      "valueRequired": false
+	    }
+	  ],
+	  "role-templates": [
+	    {
+	      "name": "Token_Exchange",
+	      "description": "UAA",
+	      "scope-references": [
+	        "uaa.user"
+	      ]
+	    }
+	  ],
+	  "oauth2-configuration": {
+	    "redirect-uris": [
+	      "MY_SPECIFIC_URLS",
+	      "https://*.hana.ondemand.com/**",
+	      "https://*.applicationstudio.cloud.sap/**",
+	      "http://localhost:5000/**",
+	      "https://*.ondemand.com/**",
+	      "http://*.localhost/**"
+	    ]
+	  }
+	}
+	```
+	
+	**package.json:** 
+		
+	```json
+		{
+		  "name": "test1",
+		  "version": "1.0.0",
+		  "description": "A simple CAP project.",
+		  "repository": "<Add your repository here>",
+		  "license": "UNLICENSED",
+		  "private": true,
+		  "dependencies": {
+		    "@cap-js-community/odata-v2-adapter": "^1.14.1",
+		    "@cap-js/hana": "^1",
+		    "@sap/cds": "^8",
+		    "@sap/xssec": "^4",
+		    "express": "^4",
+		    "rimraf": "^6.0.1"
+		  },
+		  "devDependencies": {
+		    "@cap-js/cds-types": "^0.8.0",
+		    "@cap-js/sqlite": "^1",
+		    "@sap/cds-dk": "^8"
+		  },
+		  "scripts": {
+		    "start": "cds-serve",
+		    "build": "rimraf resources mta_archives && mbt build --mtar archive",
+		    "deploy": "cf deploy mta_archives/archive.mtar --f --retries 1"
+		  },
+		  "cds": {
+		    "requires": {
+		      "auth": {
+		        "kind": "xsuaa"
+		      },
+		      "connectivity": true,
+		      "destinations": true
+		    },
+		    "cov2ap": {
+		      "plugin": true,
+		      "bodyParserLimit": "300mb"
+		    },
+		    "sql": {
+		      "native_hana_associations": false
+		    }
+		  }
+		}
+		```
+### 2. **Creating the Destination in BTP**
+The Destination should be created from the AppRouter URL (the one that does not end with srv), using the following parameters:
+```
+	#
+	#Wed Feb 26 02:07:25 UTC 2025
+	Type=HTTP
+	HTML5.DynamicDestination=true
+	Description=TESTE_CAP
+	sap.processautomation.enabled=true
+	Authentication=NoAuthentication
+	HTML5.ForwardAuthToken=true
+	WebIDEEnabled=true
+	ProxyType=Internet
+	URL=https\://MY_URL.COM
+	Name=TESTE_CAP
+	WebIDEUsage=odata_gen
+```
 
-We need to use a blog-ready theme. For this activity, we will use a theme named "minima".
+### 3. **Creating the Fiori App**
+After creating the Destination, proceed with the Fiori App creation via the wizard. Select the "Basic" option for freestyle applications. In Data Source, select "No". When prompted to create an AppRouter, enable it, then establish a connection with the created Destination.
 
-### :keyboard: Activity: Configure your site
+Configure the `xs-security.json`, `xs-app.json`, and `manifest.json` for connection establishment with route forwarding and token passing.
 
-1. Browse to the `_config.yml` file in the `my-pages` branch.
-1. In the upper right corner, open the file editor.
-1. Add a `theme:` set to **minima** so it shows in the `_config.yml` file as below:
-   ```yml
-   theme: minima
-   ```
-1. (optional) You can modify the other configuration variables such as `title:`, `author:`, and `description:` to further customize your site.
-1. Commit your changes.
-1. (optional) Create a pull request to view all the changes you'll make throughout this course. Click the **Pull Requests** tab, click **New pull request**, set `base: main` and `compare:my-pages`.
-1. Wait about 20 seconds then refresh this page (the one you're following instructions from). [GitHub Actions](https://docs.github.com/en/actions) will automatically update to the next step.
+**xs-secutity.json:**
+```json
+{
+  "xsappname": "project2",
+  "tenant-mode": "dedicated",
+  "description": "Security profile of called application",
+  "scopes": [
+    {
+      "name": "uaa.user",
+      "description": "UAA"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "Token_Exchange",
+      "description": "UAA",
+      "scope-references": [
+        "uaa.user"
+      ]
+    }
+  ]
+}
+```
+**xs-app.json:**
+```json
+{
+  "welcomeFile": "/index.html",
+  "authenticationMethod": "route",
+  "routes": [
+    {
+      "source": "/TESTE_CAP/(.*)$",
+      "target": "/$1",
+      "destination": "TESTE_CAP",
+      "authenticationType": "xsuaa",
+      "csrfProtection": false
+    },
+    {
+      "source": "^/resources/(.*)$",
+      "target": "/resources/$1",
+      "authenticationType": "none",
+      "destination": "ui5"
+    },
+    {
+      "source": "^/test-resources/(.*)$",
+      "target": "/test-resources/$1",
+      "authenticationType": "none",
+      "destination": "ui5"
+    },
+    {
+      "source": "^(.*)$",
+      "target": "$1",
+      "service": "html5-apps-repo-rt",
+      "authenticationType": "xsuaa"
+    }
+  ]
+}
+```
+**xs-app.json:**
+```json
+{
+  "_version": "1.65.0",
+  "sap.app": {
+    "id": "project2",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": {
+      "version": "0.0.1"
+    },
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "resources": "resources.json",
+    "sourceTemplate": {
+      "id": "@sap/generator-fiori:basic",
+      "version": "1.16.4",
+      "toolsId": "b03e269d-47c0-4696-8ca5-b05b9b40254c"
+    },
+    "dataSources": {
+      "TESTE_CAP": {
+        "uri": "/TESTE_CAP/odata/v2/catalog/",
+        "type": "OData",
+        "settings": {
+          "localUri": "localService/TESTE_CAP/metadata.xml"
+        }
+      }
+    },
+    "crossNavigation": {
+      "inbounds": {
+        "teste2-teste2": {
+          "semanticObject": "teste2",
+          "action": "teste2",
+          "title": "{{teste2-teste2.flpTitle}}",
+          "subTitle": "{{teste2-teste2.flpSubtitle}}",
+          "signature": {
+            "parameters": {},
+            "additionalParameters": "allowed"
+          }
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "icons": {
+      "icon": "",
+      "favIcon": "",
+      "phone": "",
+      "phone@2": "",
+      "tablet": "",
+      "tablet@2": ""
+    },
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  },
+  "sap.ui5": {
+    "flexEnabled": true,
+    "dependencies": {
+      "minUI5Version": "1.133.0",
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {}
+      }
+    },
+    "contentDensities": {
+      "compact": true,
+      "cozy": true
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "project2.i18n.i18n"
+        }
+      },
+      "oHanaModel": {
+        "type": "sap.ui.model.odata.v2.ODataModel",
+        "settings": {
+          "defaultOperationMode": "Server",
+          "defaultBindingMode": "TwoWay",
+          "defaultCountMode": "Request",
+          "useBatch": false,
+          "disableHeadRequestForToken": true
+        },
+        "dataSource": "TESTE_CAP",
+        "preload": true
+      }
+    },
+    "resources": {
+      "css": [
+        {
+          "uri": "css/style.css"
+        }
+      ]
+    },
+    "routing": {
+      "config": {
+        "routerClass": "sap.m.routing.Router",
+        "controlAggregation": "pages",
+        "controlId": "app",
+        "transition": "slide",
+        "type": "View",
+        "viewType": "XML",
+        "path": "project2.view",
+        "async": true,
+        "viewPath": "project2.view"
+      },
+      "routes": [
+        {
+          "name": "RouteView1",
+          "pattern": ":?query:",
+          "target": [
+            "TargetView1"
+          ]
+        }
+      ],
+      "targets": {
+        "TargetView1": {
+          "id": "View1",
+          "name": "View1"
+        }
+      }
+    },
+    "rootView": {
+      "viewName": "project2.view.App",
+      "type": "XML",
+      "id": "App"
+    }
+  },
+  "sap.cloud": {
+    "public": true,
+    "service": "project2"
+  }
+}
+```
 
-<footer>
+## Troubleshooting
 
-<!--
-  <<< Author notes: Footer >>>
-  Add a link to get support, GitHub status page, code of conduct, license link.
--->
+-   If encountering a "query does not exist for route..." error, check the backend callback URIs.
+    
+-   If a 404 error occurs in Fiori, verify the `xs-app.json` and `manifest.json` configurations.
+    
+-   If a 401 error occurs when calling Fiori, ensure the Destination is correctly configured.
+    
+-   If in doubt, check if the necessary roles, e.g., UAA User, are correctly assigned.
+    
+-   If SAP error screens appear when trying to log in via the CAP AppRouter URL, ensure redirect URIs are correctly configured in `xs-security.json`
+	```
+	Proposed Solution:
+	Dear CLIENT,
 
----
+	Good day to you, thanks for reaching SAP Product Support.
 
-Get help: [Post in our discussion board](https://github.com/orgs/skills/discussions/categories/github-pages) &bull; [Review the GitHub status page](https://www.githubstatus.com/)
+	I've gone through the attached error screenshot.
 
-&copy; 2023 GitHub &bull; [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md) &bull; [MIT License](https://gh.io/mit)
+	The issue is because the redirect domain is missing from redirect-uris parameter of the application's xs-security.json file.
 
-</footer>
+	======
+
+	To fix the issue, please follow KBA 3411842 - "The redirect_uri has an invalid domain" when opening an application in BTP Cloud Foundry - SAP for Me to fix the issue.
+	Even though the error message is different, the solution can still be applied.
+
+	You could add the parameter in xs-security.json file of CAP project, and then build the app and redeploy it.
+	-----
+	for example:
+
+	{
+	  "scopes": [],
+	  "attributes": [],
+	  "role-templates": [],
+	  "oauth2-configuration": {
+
+	    "redirect-uris": ["https://<host>.hana.ondemand.com/**"]
+	}
+	}
+	-----
+	This will fix the issue.
+
+	[See Also] - https://help.sap.com/docs/btp/sap-business-technology-platform/security-considerations-for-sap-authorization-and-trust-management-service#listing-allowed-redirect-uris
+	Kindly let me know if issue remains.
+
+	Best Regards,
+	RESPONDER
+	```

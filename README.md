@@ -10,7 +10,7 @@ Most of the available documentation focuses on full-stack projects. This documen
 
 -   In the creation wizard, select the options to create with standalone AppRouter, Connectivity Services, Destination Service, and authentication via XSUAA (this last option may not be available or necessary).
     
--   After setting up the project, configure the routes in AppRouter, especially the callback URI section, containing the URLs that will call the application. In theory, generic BTP URLs with asterisks would suffice, but in the example, it was necessary to specifically add the Fiori application URL.
+-   After setting up the project, configure the routes in AppRouter, especially the redirect URI section, containing the URLs that will call the application. In theory, generic BTP URLs with asterisks would suffice, but in the example, it was necessary to specifically add the Fiori application URL.
     
 -   It is necessary to create and later assign the UAA user role.
     
@@ -435,7 +435,7 @@ Configure the `xs-security.json`, `xs-app.json`, and `manifest.json` for connect
 
 ## Troubleshooting
 
--   If encountering a "query does not exist for route..." error, check the backend callback URIs.
+-   If encountering a "query does not exist for route..." error, check the backend redirect URIs.
     
 -   If a 404 error occurs in Fiori, verify the `xs-app.json` and `manifest.json` configurations.
     

@@ -214,7 +214,7 @@ Most of the available documentation focuses on full-stack projects. This documen
 		}
 	```
  
- ### 2. **Creating the Destination in BTP**
+### 2. **Creating the Destination in BTP**
 The Destination should be created from the AppRouter URL (the one that does not end with srv), using the following parameters:
 ```
 	#

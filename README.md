@@ -10,7 +10,7 @@ Most of the available documentation focuses on full-stack projects. This documen
 
 -   In the creation wizard, select the options to create with standalone AppRouter, Connectivity Services, Destination Service, and authentication via XSUAA (this last option may not be available or necessary).
     
--   After setting up the project, configure the routes in AppRouter, especially the redirect URI section, containing the URLs that will call the application. In theory, generic BTP URLs with asterisks would suffice, but in the example, it was necessary to specifically add the Fiori application URL.
+-   After setting up the project, configure the routes in AppRouter, especially the redirect URIs section, containing the URLs that will call the application. In theory, generic BTP URLs with asterisks would suffice, but in the example, it was necessary to specifically add the Fiori application URL.
     
 -   It is necessary to create and later assign the UAA user role.
     

@@ -294,7 +294,7 @@ Configure the `xs-security.json`, `xs-app.json`, and `manifest.json` for connect
   ]
 }
 ```
-**xs-app.json:**
+**manifest.json:**
 ```json
 {
   "_version": "1.65.0",

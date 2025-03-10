@@ -236,6 +236,7 @@ The Destination should be created from the CAP service URL (not the AppRouter UR
 After creating the Destination, proceed with the Fiori App creation via the wizard. Select the "Basic" option for freestyle applications. In Data Source, select "No". When prompted to create an AppRouter, enable it, then establish a connection with the created Destination.
 
 To enable the Fiori application to authenticate with the CAP backend, you must bind it to the same XSUAA instance used by the backend. This can be done as shown in the example below (watch for 'testebackend-auth'):
+
 **mta.yaml:**
 ```yaml
 _schema-version: "3.2"

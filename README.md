@@ -236,7 +236,7 @@ The Destination should be created from the CAP service URL (not the AppRouter UR
 ### 3. **Creating the Fiori App**
 After creating the Destination, proceed with the Fiori App creation via the wizard. Select the "Basic" option for freestyle applications. In Data Source, select "No". When prompted to create an AppRouter, enable it, then establish a connection with the created Destination.
 
-To enable the Fiori application to authenticate with the CAP backend, you must bind it to the same XSUAA instance used by the backend. This can be done as shown in the example below (watch for 'testebackend-auth'):
+To enable the Fiori application to authenticate with the CAP backend, you must bind it to the same XSUAA instance used by the backend. This can be done as shown in the example below (pay attention to 'testebackend-auth' and to 'org.cloudfoundry.existing-service'):
 
 **mta.yaml:**
 ```yaml
@@ -319,12 +319,10 @@ resources:
     service-name: testefrontend-destination-service
     service-plan: lite
 - name: testefrontend-uaa
-  type: org.cloudfoundry.managed-service
+  type: org.cloudfoundry.existing-service
   parameters:
-    path: ./xs-security.json
     service: xsuaa
     service-name: testebackend-auth
-    service-plan: application
 - name: testefrontend-repo-host
   type: org.cloudfoundry.managed-service
   parameters:       
@@ -546,7 +544,7 @@ Configure the `xs-security.json`, `xs-app.json`, and `manifest.json` for connect
 -   If in doubt, check if the necessary roles, e.g., UAA User, are correctly assigned.
 
 - If you're receiving an unexpected response from the metadata request in the Fiori application, the issue is likely due to incorrect XSUAA bindings. This probably means the Fiori application is not bound to the same XSUAA instance as the CAP backend.
-    
+- If you're trying to add this method of authentication to an existing project, it is necessary to completely delete everything related to the Fiori application (HTML5 repo, destination service, service keys etc) from Cloud Foundry and then redeploy it with the new configuration. It is not necessary to delete the CAP backend.   
 -   If SAP error screens appear when trying to log in via the CAP AppRouter URL, ensure redirect URIs are correctly configured in `xs-security.json`
 	```
 	Proposed Solution:
